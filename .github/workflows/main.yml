@@ -1,0 +1,217 @@
+name: OPNord4-KSU
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  ROOT_DIR_PREFIX: "OPNord4-A15"
+  BRANCH: "android14-6.1"
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout source code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # 2. Free up disk space (ensures sufficient disk space)
+      - name: Free Disk Space
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq curl
+          curl -fsSL https://raw.githubusercontent.com/kou/arrow/e49d8ae15583ceff03237571569099a6ad62be32/ci/scripts/util_free_space.sh | bash
+      # 3. Install required system packages (combine updates to minimize repetition)
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-pip curl git zip unzip gcc g++ make ninja-build file \
+            bc bison flex libssl-dev libelf-dev wget build-essential \
+            python3-dev python3-setuptools rsync ccache cmake libdw-dev zlib1g-dev
+      # 4. Configure ccache to speed up recompilations
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          max-size: 2G
+
+      # 5. Configure Python environment & install Repo tool
+      - name: Setup Python and Repo Tool
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install gitpython xmltodict
+          mkdir -p ~/.bin
+          curl -s https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
+          chmod a+x ~/.bin/repo
+          echo "$HOME/.bin" >> $GITHUB_PATH
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+      # 6. Create and set build directory based on current date/time
+      - name: Configure Build Directory
+        run: |
+          ROOT_DIR="${ROOT_DIR_PREFIX}-$(date +'%Y-%m-%d-%H-%M')-release"
+          echo "ROOT_DIR=${ROOT_DIR}" >> $GITHUB_ENV
+          mkdir -p "builds/${ROOT_DIR}"
+          cd "builds/${ROOT_DIR}"
+      # 7. Clone required repositories (using shallow clone for speed)
+      - name: Clone Required Repositories
+        working-directory: builds/${{ env.ROOT_DIR }}
+        run: |
+          repos=(
+            "https://github.com/Kernel-SU/AnyKernel3 --depth=1"
+            "https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1 --depth=1"
+            "https://github.com/WildPlusKernel/kernel_patches.git --depth=1"
+          )
+          for repo in "${repos[@]}"; do
+            echo "Cloning ${repo}"
+            git clone $repo || { echo "Failed to clone $repo"; exit 1; }
+          done
+      # 8. Initialize and sync the kernel source via Repo tool
+      - name: Setup Kernel Source
+        working-directory: builds/${{ env.ROOT_DIR }}
+        run: |
+          mkdir -p kernel_platform/oneplusNord4_v
+          cd kernel_platform/oneplusNord4_v
+          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b oneplus/sm7675 -m oneplus_nord_4_v.xml --depth=1 || { echo "Failed to initialize repo"; exit 1; }
+          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags || { echo "Failed to sync repo"; exit 1; }
+          rm -rf ./kernel_platform/common/android/abi_gki_protected_exports_*
+      # 9. Setup KernelSU (fetch, update submodules, and adjust versioning)
+      - name: Setup KernelSU
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplusNord4_v/kernel_platform
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+          git submodule update --init --recursive
+          cd KernelSU-Next/kernel
+          # Calculate KSU version based on commit count
+          KSU_VERSION=$(expr $(/usr/bin/git rev-list --count HEAD) + 10200)
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+          sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" Makefile
+      # 10. Setup SUSFS (clone additional repositories, copy files, patch as needed)
+      - name: Setup SUSFS
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplusNord4_v/kernel_platform
+        run: |
+          set -euxo pipefail
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
+          git clone https://github.com/WildPlusKernel/kernel_patches.git
+          # Copy SUSFS patches and files
+          cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/
+          cp kernel_patches/next/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch ./KernelSU-Next/
+          cp kernel_patches/next/syscall_hooks.patch ./common/
+          cp susfs4ksu/kernel_patches/fs/* ./common/fs/
+          cp susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+          # Apply patches in KernelSU and common directories
+          cd ./KernelSU-Next
+          patch -p1 < 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch || true
+          cd ../common
+          patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch || true
+          if [ -f kernel_patches/69_hide_stuff.patch ]; then
+            cp kernel_patches/69_hide_stuff.patch ./
+            patch -p1 -F 3 < 69_hide_stuff.patch || true
+          fi
+          patch -p1 -F 3 < syscall_hooks.patch || true
+      # 11. Append required configuration settings to gki_defconfig
+      - name: Configure Kernel
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplusNord4_v/kernel_platform
+        run: |
+          set -e
+          CONFIGS=(
+            "CONFIG_KSU=y"
+            "CONFIG_KSU_WITH_KPROBES=n"
+            "CONFIG_KSU_SUSFS=y"
+            "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y"
+            "CONFIG_KSU_SUSFS_SUS_PATH=y"
+            "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
+            "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y"
+            "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y"
+            "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
+            "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=n"
+            "CONFIG_KSU_SUSFS_TRY_UMOUNT=y"
+            "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y"
+            "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
+            "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
+            "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
+            "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
+            "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
+            "CONFIG_KSU_SUSFS_SUS_SU=n"
+            # Filesystem
+            "CONFIG_TMPFS_XATTR=y"
+            "CONFIG_TMPFS_POSIX_ACL=y"
+            # Network
+            "CONFIG_IP_NF_TARGET_TTL=y"
+            "CONFIG_IP6_NF_TARGET_HL=y"
+            "CONFIG_IP6_NF_MATCH_HL=y"
+            # Scheduler
+            "CONFIG_SCHED_CLASS_EXT=y"
+            "CONFIG_SMP=y"
+            "CONFIG_CPU_FREQ_GOV_SCHEDUTIL=y"
+            "CONFIG_MSM_PERFORMANCE=y"
+            # Power management
+            "CONFIG_NO_HZ_IDLE=y"
+            "CONFIG_PM_SLEEP_SMP=y"
+            # Disable excessive debugging features
+            "CONFIG_DEBUG_KERNEL=n"
+            "CONFIG_DYNAMIC_DEBUG=n"
+            "CONFIG_DEBUG_INFO=n"   
+          )
+          for CONFIG in "${CONFIGS[@]}"; do
+            echo "$CONFIG" >> ./common/arch/arm64/configs/gki_defconfig
+          done
+          sed -i '2s/check_defconfig//' ./common/build.config.gki
+      # 12. Run sed modifications to enable LTO and remove "-dirty" markers
+      - name: Run sed Commands
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplusNord4_v/kernel_platform
+        run: |
+          echo "Running sed modifications..."
+          sed -i 's/CONFIG_LTO=n/CONFIG_LTO=y/' "./common/arch/arm64/configs/gki_defconfig"
+          sed -i 's/CONFIG_LTO_CLANG_THIN=y/CONFIG_LTO_CLANG_FULL=y/' "./common/arch/arm64/configs/gki_defconfig"
+          sed -i 's/CONFIG_LTO_CLANG_NONE=y/CONFIG_LTO_CLANG_FULL=y/' "./common/arch/arm64/configs/gki_defconfig"
+          sed -i 's/check_defconfig//' ./common/build.config.gki
+          sed -i 's/-dirty//' ./common/scripts/setlocalversion
+          sed -i 's/-dirty//' ./msm-kernel/scripts/setlocalversion
+          sed -i 's/-dirty//' ./external/dtc/scripts/setlocalversion
+          sed -i 's/-dirty//' ./build/kernel/kleaf/workspace_status_stamp.py || echo "No workspace_status_stamp.py!"
+      # 13. Build the kernel using Bazel with LTO enabled
+      - name: Build Kernel
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplusNord4_v
+        run: |
+          cd kernel_platform
+          export LTO=full
+          mkdir -p out
+          export PATH="/usr/lib/ccache:$PATH"
+          ./build_with_bazel.py \
+            -t pineapple \
+            gki \
+            --jobs=$(nproc --all) \
+            --verbose_failures \
+            --config=stamp \
+            --user_kmi_symbol_lists=//msm-kernel:android/abi_gki_aarch64_qcom \
+            --ignore_missing_projects \
+            -o "$(pwd)/out" || { echo "Bazel build failed"; exit 1; }
+      # 14. Create the zip package containing the built kernel image
+      - name: Create ZIP Package
+        working-directory: builds/${{ env.ROOT_DIR }}
+        run: |
+          if [ ! -f kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image ]; then
+            echo "❌ Kernel image not found"
+            exit 1
+          fi
+          cp kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image AnyKernel3/Image || { echo "❌ Failed to copy kernel image"; exit 1; }
+          cd AnyKernel3
+          ZIP_NAME="OPNord4-KSU-${KSUVER}.zip"
+          echo "📦 Creating zip file: $ZIP_NAME"
+          zip -r "../$ZIP_NAME" ./* || { echo "❌ Failed to create zip file"; exit 1; }
+          ls -lh "../$ZIP_NAME"
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_ENV
+      # 15. Upload the generated zip file as an artifact
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ env.ROOT_DIR }}
+          path: builds/${{ env.ROOT_DIR }}/*.zip
