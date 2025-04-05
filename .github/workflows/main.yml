@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 env:
+  TZ: Asia/Kolkata
   DEBIAN_FRONTEND: noninteractive
   ROOT_DIR_PREFIX: "OPNord4-A15"
   BRANCH: "android14-6.1"
@@ -56,7 +57,7 @@ jobs:
       # 6. Create and set build directory based on current date/time
       - name: Configure Build Directory
         run: |
-          ROOT_DIR="${ROOT_DIR_PREFIX}-$(date +'%Y-%m-%d-%H-%M')-release"
+          ROOT_DIR="${ROOT_DIR_PREFIX}-$(TZ=Asia/Kolkata date +'%d-%m-%Y-%I-%M-%p')"
           echo "ROOT_DIR=${ROOT_DIR}" >> $GITHUB_ENV
           mkdir -p "builds/${ROOT_DIR}"
           cd "builds/${ROOT_DIR}"
@@ -203,15 +204,9 @@ jobs:
             exit 1
           fi
           cp kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image AnyKernel3/Image || { echo "❌ Failed to copy kernel image"; exit 1; }
-          cd AnyKernel3
-          ZIP_NAME="OPNord4-KSU-${KSUVER}.zip"
-          echo "📦 Creating zip file: $ZIP_NAME"
-          zip -r "../$ZIP_NAME" ./* || { echo "❌ Failed to create zip file"; exit 1; }
-          ls -lh "../$ZIP_NAME"
-          echo "zip_name=$ZIP_NAME" >> $GITHUB_ENV
       # 15. Upload the generated zip file as an artifact
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ env.ROOT_DIR }}
-          path: builds/${{ env.ROOT_DIR }}/*.zip
+          name: Susfs_Patched_Kernel-${{ env.ROOT_DIR }}
+          path: builds/${{ env.ROOT_DIR }}/AnyKernel3
