@@ -57,7 +57,7 @@ jobs:
       # 6. Create and set build directory based on current date/time
       - name: Configure Build Directory
         run: |
-          ROOT_DIR="${ROOT_DIR_PREFIX}-$(TZ=Asia/Kolkata date +'%d-%m-%Y-%I-%M-%p')-RKG"
+          ROOT_DIR="${ROOT_DIR_PREFIX}_$(TZ=Asia/Kolkata date +'%d/%m/%Y_%I:%M%p')_RKG"
           echo "ROOT_DIR=${ROOT_DIR}" >> $GITHUB_ENV
           mkdir -p "builds/${ROOT_DIR}"
           cd "builds/${ROOT_DIR}"
