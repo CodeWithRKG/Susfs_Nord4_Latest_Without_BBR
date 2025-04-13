@@ -9,7 +9,7 @@ on:
 env:
   TZ: Asia/Kolkata
   DEBIAN_FRONTEND: noninteractive
-  ROOT_DIR_PREFIX: "OPNord4-A15"
+  ROOT_DIR_PREFIX: "OPNord4_A15"
   BRANCH: "android14-6.1"
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -208,5 +208,5 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Susfs_Kernel-${{ env.KSUVER }}-${{ env.ROOT_DIR }}
+          name: Susfs_Kernel_${{ env.KSUVER }}_${{ env.ROOT_DIR }}
           path: builds/${{ env.ROOT_DIR }}/AnyKernel3
