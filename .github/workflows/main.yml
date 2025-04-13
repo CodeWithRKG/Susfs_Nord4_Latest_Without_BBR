@@ -197,14 +197,14 @@ jobs:
             -o "$(pwd)/out" || { echo "Bazel build failed"; exit 1; }
       # 14. Create the zip package containing the built kernel image
       - name: Create ZIP Package
-        working-directory: builds/${{ env.ROOT_DIR }}
-        run: |
-          if [ ! -f kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image ]; then
-            echo "❌ Kernel image not found"
-            exit 1
-          fi
-          cp kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image AnyKernel3/Image || { echo "❌ Failed to copy kernel image"; exit 1; }
-ZIP_NAME="Susfs_Kernel-${{ env.ROOT_DIR }}-${{ env.KSUVER }}.zip"
+  working-directory: builds/${{ env.ROOT_DIR }}
+  run: |
+    if [ ! -f kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image ]; then
+      echo "❌ Kernel image not found"
+      exit 1
+    fi
+    cp kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image AnyKernel3/Image || { echo "❌ Failed to copy kernel image"; exit 1; }
+    ZIP_NAME="Susfs_Kernel-${{ env.ROOT_DIR }}-${{ env.KSUVER }}.zip"
     cd AnyKernel3
     zip -r "../$ZIP_NAME" .
     echo "ZIP package created: $ZIP_NAME"
