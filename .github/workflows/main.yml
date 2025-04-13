@@ -204,7 +204,7 @@ jobs:
       exit 1
     fi
     cp kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image AnyKernel3/Image || { echo "❌ Failed to copy kernel image"; exit 1; }
-    ZIP_NAME="Susfs_Kernel-${{ env.ROOT_DIR }}-${{ env.KSUVER }}.zip"
+    export ZIP_NAME="Susfs_Kernel-${{ env.ROOT_DIR }}-${{ env.KSUVER }}.zip"
     cd AnyKernel3
     zip -r "../$ZIP_NAME" .
     echo "ZIP package created: $ZIP_NAME"
