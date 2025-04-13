@@ -9,7 +9,7 @@ on:
 env:
   TZ: Asia/Kolkata
   DEBIAN_FRONTEND: noninteractive
-  ROOT_DIR_PREFIX: "OPNord4_A15"
+  ROOT_DIR_PREFIX: "OPNord4-A15"
   BRANCH: "android14-6.1"
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -57,7 +57,7 @@ jobs:
       # 6. Create and set build directory based on current date/time
       - name: Configure Build Directory
         run: |
-          ROOT_DIR="${ROOT_DIR_PREFIX}_$(TZ=Asia/Kolkata date +'%d/%m/%Y_%I:%M%p')_RKG"
+          ROOT_DIR="${ROOT_DIR_PREFIX}_$(TZ=Asia/Kolkata date +'%d-%m-%Y_%I-%M-%p')_RKG"
           echo "ROOT_DIR=${ROOT_DIR}" >> $GITHUB_ENV
           mkdir -p "builds/${ROOT_DIR}"
           cd "builds/${ROOT_DIR}"
@@ -208,5 +208,5 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Susfs_Kernel_${{ env.KSUVER }}_${{ env.ROOT_DIR }}
+          name: Susfs-Kernel_${{ env.KSUVER }}_${{ env.ROOT_DIR }}
           path: builds/${{ env.ROOT_DIR }}/AnyKernel3
