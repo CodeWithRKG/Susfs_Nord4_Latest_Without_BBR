@@ -208,5 +208,5 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Susfs_Kernel-${{ env.KSUVER }} -${{ env.ROOT_DIR }}
+          name: Susfs_Kernel-${{ env.KSUVER }}-${{ env.ROOT_DIR }}
           path: builds/${{ env.ROOT_DIR }}/AnyKernel3
