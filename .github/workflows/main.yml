@@ -197,20 +197,16 @@ jobs:
             -o "$(pwd)/out" || { echo "Bazel build failed"; exit 1; }
       # 14. Create the zip package containing the built kernel image
       - name: Create ZIP Package
-  working-directory: builds/${{ env.ROOT_DIR }}
-  run: |
-    if [ ! -f kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image ]; then
-      echo "❌ Kernel image not found"
-      exit 1
-    fi
-    cp kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image AnyKernel3/Image || { echo "❌ Failed to copy kernel image"; exit 1; }
-    ZIP_NAME="Susfs_Kernel-${{ env.ROOT_DIR }}-${{ env.KSUVER }}.zip"
-    cd AnyKernel3
-    zip -r "../$ZIP_NAME" .
-    echo "ZIP package created: $ZIP_NAME"
+        working-directory: builds/${{ env.ROOT_DIR }}
+        run: |
+          if [ ! -f kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image ]; then
+            echo "❌ Kernel image not found"
+            exit 1
+          fi
+          cp kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image AnyKernel3/Image || { echo "❌ Failed to copy kernel image"; exit 1; }
       # 15. Upload the generated zip file as an artifact
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Susfs_Kernel-${{ env.ROOT_DIR }}
+          name: Susfs_Kernel-${{ env.KSUVER }} -${{ env.ROOT_DIR }}
           path: builds/${{ env.ROOT_DIR }}/AnyKernel3
