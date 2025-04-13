@@ -57,7 +57,7 @@ jobs:
       # 6. Create and set build directory based on current date/time
       - name: Configure Build Directory
         run: |
-          ROOT_DIR="${ROOT_DIR_PREFIX}-${KSUVER}-$(TZ=Asia/Kolkata date +'%d-%m-%Y-%I-%M-%p')-RKG"
+          ROOT_DIR="${ROOT_DIR_PREFIX}-$(TZ=Asia/Kolkata date +'%d-%m-%Y-%I-%M-%p')-RKG"
           echo "ROOT_DIR=${ROOT_DIR}" >> $GITHUB_ENV
           mkdir -p "builds/${ROOT_DIR}"
           cd "builds/${ROOT_DIR}"
@@ -204,6 +204,10 @@ jobs:
             exit 1
           fi
           cp kernel_platform/oneplusNord4_v/kernel_platform/out/dist/Image AnyKernel3/Image || { echo "❌ Failed to copy kernel image"; exit 1; }
+ZIP_NAME="Susfs_Kernel-${{ env.ROOT_DIR }}-${{ env.KSUVER }}.zip"
+    cd AnyKernel3
+    zip -r "../$ZIP_NAME" .
+    echo "ZIP package created: $ZIP_NAME"
       # 15. Upload the generated zip file as an artifact
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
