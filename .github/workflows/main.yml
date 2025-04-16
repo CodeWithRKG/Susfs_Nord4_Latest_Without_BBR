@@ -165,6 +165,48 @@ jobs:
             echo "$CONFIG" >> ./common/arch/arm64/configs/gki_defconfig
           done
           sed -i '2s/check_defconfig//' ./common/build.config.gki
+      # 12. Add additional tcp_bbr config setting 
+          # Enable BBR
+#!/bin/bash
+
+# Path to the gki_defconfig file
+CONFIG_FILE="./common/arch/arm64/configs/gki_defconfig"
+
+# Check if the file exists
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  echo "Error: Configuration file not found at $CONFIG_FILE"
+  exit 1
+fi
+
+# Helper function to add a configuration if it doesn't already exist
+add_config() {
+  local config=$1
+  if ! grep -q "^$config" "$CONFIG_FILE"; then
+    echo "$config" >> "$CONFIG_FILE"
+    echo "Added: $config"
+  else
+    echo "Already exists: $config"
+  fi
+}
+
+# Enable advanced TCP congestion control and BBR
+add_config "CONFIG_TCP_CONG_ADVANCED=y"
+add_config "CONFIG_TCP_CONG_BBR=y"
+
+# Optional: Keep Reno and Cubic as alternatives
+add_config "CONFIG_TCP_CONG_CUBIC=y"
+add_config "CONFIG_TCP_CONG_RENO=y"
+add_config "CONFIG_DEFAULT_CUBIC=y"
+add_config 'CONFIG_DEFAULT_TCP_CONG="cubic"'
+
+# Enable FQ-CoDel and FQ for Queue Management
+add_config "CONFIG_NET_SCH_FQ=y"
+add_config "CONFIG_NET_SCH_FQ_CODEL=y"
+add_config "CONFIG_NET_SCH_DEFAULT=y"
+add_config "CONFIG_DEFAULT_FQ=y"
+add_config 'CONFIG_DEFAULT_NET_SCH="fq"'
+
+echo "Configuration updates completed."
       # 13. Run sed modifications to enable LTO and remove "-dirty" markers
       - name: Run sed Commands
         working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplusNord4_v/kernel_platform
