@@ -159,12 +159,28 @@ jobs:
             # Disable excessive debugging features
             "CONFIG_DEBUG_KERNEL=n"
             "CONFIG_DYNAMIC_DEBUG=n"
-            "CONFIG_DEBUG_INFO=n"   
+            "CONFIG_DEBUG_INFO=n"
+	    # Enable BBR 
+            "CONFIG_TCP_CONG_ADVANCED=y" 
+            "CONFIG_TCP_CONG_BBR=y"           
+            # Reno/Cubic as alternatives 
+            "CONFIG_TCP_CONG_CUBIC=y"
+            "CONFIG_TCP_CONG_RENO=y" 
+            "CONFIG_DEFAULT_CUBIC=y" 
+            "CONFIG_DEFAULT_TCP_CONG="cubic"
+            # Enable FQ-CoDel and FQ for Queue Management 
+            "CONFIG_NET_SCH_FQ=y"
+            "CONFIG_NET_SCH_FQ_CODEL=y"
+            "CONFIG_NET_SCH_DEFAULT=y" 
+            "CONFIG_DEFAULT_FQ=y" >>
+            "CONFIG_DEFAULT_NET_SCH="fq"
+   
           )
           for CONFIG in "${CONFIGS[@]}"; do
             echo "$CONFIG" >> ./common/arch/arm64/configs/gki_defconfig
           done
           sed -i '2s/check_defconfig//' ./common/build.config.gki
+      
       # 13. Run sed modifications to enable LTO and remove "-dirty" markers
       - name: Run sed Commands
         working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplusNord4_v/kernel_platform
