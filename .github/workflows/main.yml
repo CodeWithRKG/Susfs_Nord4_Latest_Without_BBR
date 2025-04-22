@@ -1,4 +1,4 @@
-name: Latest_Susfs_Kernel_Nord_4
+name: Latest_Susfs_Kernel_Without_BBR_Nord_4
 
 on:
   push:
